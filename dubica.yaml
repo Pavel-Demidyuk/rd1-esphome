@@ -27,31 +27,35 @@ captive_portal:
 # Настройка выключателей света и воды
 switch:
   - platform: gpio
-    id: light
-    name: "Light 1"
+    id: light2
+    name: "Light 2"
     pin: 2
   - platform: gpio
-    id: water1
-    name: "Water 1"
+    id: light13
+    name: "Light 13"
     pin: 13
   - platform: gpio
-    id: water2
-    name: "Water 2"
-    pin:
-      number: 27
+    id: water27
+    name: "Water 27"
+    pin: 27
   - platform: gpio
-    id: water3
-    name: "Water 3"
+    id: water32
+    name: "Water 32"
     pin:
       number: 32
   - platform: gpio
+    id: water33
+    name: "Water 33"
+    pin:
+      number: 33
+  - platform: gpio
     id: open_cover_switch
     internal: true
-    pin: 27
+    pin: 25
   - platform: gpio
     id: close_cover_switch
     internal: true
-    pin: 27
+    pin: 26
   - platform: template
     id: windows_switch
     name: "windows helper"
@@ -78,32 +82,64 @@ binary_sensor:
       inverted: true
     on_press:
       - display_menu.enter:
+
   # Сенсоры окна.
   - platform: gpio
     internal: true
     id: open_endstop_binary_sensor
     pin:
-      number: 2
+      number: 12
       inverted: true
-
   - platform: gpio
     internal: true
     id: close_endstop_binary_sensor
     pin:
-      number: 2
+      number: 14
       inverted: true
+  # - platform: gpio
+  #   internal: true
+  #   id: open_movement_binary_sensor
+  #   pin:
+  #     number: 2
+  #     inverted: true
+  # - platform: gpio
+  #   internal: true
+  #   id: close_movement_binary_sensor
+  #   pin:
+  #     number: 2
+  #     inverted: true
+
+  # Сенсоры света
   - platform: gpio
     internal: true
-    id: open_movement_binary_sensor
+    id: light_sensor1
+    on_state:
+      if:
+        condition:
+          binary_sensor.is_on: light_sensor1
+        then:
+          switch.turn_on: light2
+        else:
+          switch.turn_off: light2
     pin:
-      number: 2
+      number: 15
       inverted: true
+
   - platform: gpio
     internal: true
-    id: close_movement_binary_sensor
+    id: light_sensor2
+    on_state:
+      if:
+        condition:
+          binary_sensor.is_on: light_sensor2
+        then:
+          switch.turn_on: light13
+        else:
+          switch.turn_off: light13
     pin:
-      number: 2
+      number: 36
       inverted: true
+
 # Крутелка энкодера
 sensor:
   - platform: rotary_encoder
@@ -262,32 +298,39 @@ lcd_menu:
       switch: windows_switch
 
     - type: switch
-      text: "CBET"
+      text: "CBET 2"
       immediate_edit: true
       on_text: "BK\x03"
       off_text: "B\x04K\x03"
-      switch: light
+      switch: light2
 
     - type: switch
-      text: "BO\x02A 1"
+      text: "CBET 13"
       immediate_edit: true
       on_text: "BK\x03"
       off_text: "B\x04K\x03"
-      switch: water1
+      switch: light13
 
     - type: switch
-      text: "BO\x02A 2"
+      text: "BO\x02A 27"
       immediate_edit: true
       on_text: "BK\x03"
       off_text: "B\x04K\x03"
-      switch: water2
+      switch: water27
 
     - type: switch
-      text: "BO\x02A 3"
+      text: "BO\x02A 32"
       immediate_edit: true
       on_text: "BK\x03"
       off_text: "B\x04K\x03"
-      switch: water3
+      switch: water32
+
+    - type: switch
+      text: "BO\x02A 33"
+      immediate_edit: true
+      on_text: "BK\x03"
+      off_text: "B\x04K\x03"
+      switch: water33
 
     - type: menu
       text: "\x08APAMETP\x04"
