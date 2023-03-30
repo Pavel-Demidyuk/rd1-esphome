@@ -52,6 +52,16 @@ switch:
     id: close_cover_switch
     internal: true
     pin: 27
+  - platform: template
+    id: windows_switch
+    name: "windows helper"
+    turn_on_action: 
+      - cover.open: windows
+      - logger.log: "Cover is open!"
+    turn_off_action: 
+      - cover.close: windows
+      - logger.log: "Cover is closed!"
+    internal: true
 
 i2c:
   sda: 21
@@ -68,6 +78,32 @@ binary_sensor:
       inverted: true
     on_press:
       - display_menu.enter:
+  # Сенсоры окна.
+  - platform: gpio
+    internal: true
+    id: open_endstop_binary_sensor
+    pin:
+      number: 2
+      inverted: true
+
+  - platform: gpio
+    internal: true
+    id: close_endstop_binary_sensor
+    pin:
+      number: 2
+      inverted: true
+  - platform: gpio
+    internal: true
+    id: open_movement_binary_sensor
+    pin:
+      number: 2
+      inverted: true
+  - platform: gpio
+    internal: true
+    id: close_movement_binary_sensor
+    pin:
+      number: 2
+      inverted: true
 # Крутелка энкодера
 sensor:
   - platform: rotary_encoder
@@ -79,52 +115,47 @@ sensor:
       - display_menu.up:
     on_clockwise:
       - display_menu.down:
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    id: wifi_sensor
+    update_interval: 5s
+    internal: true
+  - platform: copy # Reports the WiFi signal strength in %
+    source_id: wifi_sensor
+    id: wifi_percent
+    name: "WiFi Signal Percent"
+    filters:
+      - lambda: return round(min(max(2 * (x + 100.0), 0.0), 100.0));
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+    internal: true
 
-# Окна, пока закоменчены, чет валят всю систему
-# - platform: gpio
-#   internal: true
-#   id: open_endstop_binary_sensor
-#   pin:
-#     number: 2
-#     inverted: true
-# - platform: gpio
-#   internal: true
-#   id: close_endstop_binary_sensor
-#   pin:
-#     number: 2
-#     inverted: true
-# - platform: gpio
-#   internal: true
-#   id: open_movement_binary_sensor
-#   pin:
-#     number: 2
-#     inverted: true
-# - platform: gpio
-#   internal: true
-#   id: close_movement_binary_sensor
-#   pin:
-#     number: 2
-#     inverted: true
 
-# cover:
-#   - platform: feedback
-#     name: "Gate"
-
-#     open_action:
-#       - switch.turn_on: open_cover_switch
-#     open_duration: 120sec
-#     open_endstop: open_endstop_binary_sensor
-#     open_sensor: open_movement_binary_sensor
-
-#     close_action:
-#       - switch.turn_on: close_cover_switch
-#     close_duration: 100sec
-#     close_endstop: close_endstop_binary_sensor
-#     close_sensor: close_movement_binary_sensor
-
-#     stop_action:
-#       - switch.turn_off: open_cover_switch
-#       - switch.turn_off: close_cover_switch
+# Управление окна
+cover:
+  - platform: endstop
+    id: windows
+    name: "OKHA"
+    open_action:
+      - switch.turn_on: open_cover_switch
+    open_duration: 1.5min #время открытия
+    open_endstop: open_endstop_binary_sensor
+    close_action:
+      - switch.turn_on: close_cover_switch
+    close_duration: 1min #время закрытия
+    close_endstop: close_endstop_binary_sensor
+    stop_action:
+      - switch.turn_off: open_cover_switch
+      - switch.turn_off: close_cover_switch
+    on_open:
+      - switch.template.publish:
+          id: windows_switch
+          state: ON
+    on_closed:
+      - switch.template.publish:
+          id: windows_switch
+          state: OFF
+      
 
 # Настройки экрана и кирилицы
 display:
@@ -194,6 +225,18 @@ display:
           - 0b10101
           - 0b11101
           - 0b00000
+      
+      # Буква 3
+      - position: 5
+        data:
+          - 0b11110
+          - 0b00001
+          - 0b00001
+          - 0b01110
+          - 0b00001
+          - 0b00001
+          - 0b11110
+          - 0b00000
 
 # Настройка меню
 lcd_menu:
@@ -208,10 +251,19 @@ lcd_menu:
     then:
       lambda: 'ESP_LOGI("display_menu", "root leave");'
   items:
+    # - type: label
+    #   text: "TEM\x08EPAT\x01PA: 35"
+    # return std::to_string(id(wifi_sensor).state / 100.0);
     - type: label
-      text: "TEM\x08EPAT\x01PA: 35"
-    - type: label
+      text: !lambda |-       
+        return "Wifi: " + std::to_string(round(id(wifi_percent).state)) + "%";
+
+    - type: switch
       text: "OKHA"
+      immediate_edit: true
+      on_text: "OTKP"
+      off_text: "\x05AKP"
+      switch: windows_switch
 
     - type: switch
       text: "CBET"
