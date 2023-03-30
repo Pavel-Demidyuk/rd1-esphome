@@ -55,10 +55,10 @@ switch:
   - platform: template
     id: windows_switch
     name: "windows helper"
-    turn_on_action: 
+    turn_on_action:
       - cover.open: windows
       - logger.log: "Cover is open!"
-    turn_off_action: 
+    turn_off_action:
       - cover.close: windows
       - logger.log: "Cover is closed!"
     internal: true
@@ -128,8 +128,12 @@ sensor:
       - lambda: return round(min(max(2 * (x + 100.0), 0.0), 100.0));
     unit_of_measurement: "Signal %"
     entity_category: "diagnostic"
+    accuracy_decimals: 1
     internal: true
-
+  - platform: internal_temperature
+    id: internal_temp
+    update_interval: 5s
+    internal: true
 
 # Управление окна
 cover:
@@ -155,7 +159,6 @@ cover:
       - switch.template.publish:
           id: windows_switch
           state: OFF
-      
 
 # Настройки экрана и кирилицы
 display:
@@ -225,7 +228,7 @@ display:
           - 0b10101
           - 0b11101
           - 0b00000
-      
+
       # Буква 3
       - position: 5
         data:
@@ -251,13 +254,6 @@ lcd_menu:
     then:
       lambda: 'ESP_LOGI("display_menu", "root leave");'
   items:
-    # - type: label
-    #   text: "TEM\x08EPAT\x01PA: 35"
-    # return std::to_string(id(wifi_sensor).state / 100.0);
-    - type: label
-      text: !lambda |-       
-        return "Wifi: " + std::to_string(round(id(wifi_percent).state)) + "%";
-
     - type: switch
       text: "OKHA"
       immediate_edit: true
@@ -292,3 +288,21 @@ lcd_menu:
       on_text: "BK\x03"
       off_text: "B\x04K\x03"
       switch: water3
+
+    - type: menu
+      text: "\x08APAMETP\x04"
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("display_menu", "enter: %s", it->get_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("display_menu", "leave: %s", it->get_text().c_str());'
+      items:
+        - type: label
+          text: !lambda |-
+            return "Wifi: " + std::to_string((int) id(wifi_percent).state) + "%";
+        - type: label
+          text: !lambda |-
+            return "CPU: " + std::to_string((int) id(internal_temp).state) + "C";
+        - type: back
+          text: "<- HA\x05A\x02"
