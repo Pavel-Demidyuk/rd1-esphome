@@ -18,11 +18,11 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
-  ap:
-    ssid: "Dubica Fallback Hotspot"
-    password: "HJjTZMs4jTRE"
-
 captive_portal:
+
+# Датчик температуры
+dallas:
+  - pin: 4
 
 # Настройка выключателей света и воды
 switch:
@@ -140,8 +140,13 @@ binary_sensor:
       number: 36
       inverted: true
 
-# Крутелка энкодера
 sensor:
+  # Температура
+  - platform: dallas
+    id: main_temp
+    index: 0
+    name: "Temperature"
+  # Крутелка энкодера
   - platform: rotary_encoder
     name: "Rotary Encoder"
     internal: true
@@ -290,6 +295,10 @@ lcd_menu:
     then:
       lambda: 'ESP_LOGI("display_menu", "root leave");'
   items:
+    - type: label
+      text: !lambda |-
+        return "TEM\x08-PA: " + std::to_string((int) id(main_temp).state) + "C";
+
     - type: switch
       text: "OKHA"
       immediate_edit: true
