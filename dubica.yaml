@@ -70,6 +70,9 @@ switch:
   - platform: restart
     id: restart_button
     internal: true
+  - platform: shutdown
+    id: shutdown_button
+    internal: true
 
 i2c:
   sda: 21
@@ -213,7 +216,7 @@ cover:
 display:
   - platform: lcd_pcf8574
     id: my_lcd
-    update_interval: 0.2s
+    update_interval: 0.5s
     dimensions: 20x4
     address: 0x27
     lambda: |-
@@ -222,6 +225,7 @@ display:
         it.print("Menu is not active");
     user_characters:
       # https://omerk.github.io/lcdchargen/
+
       # Буква П
       - position: 0
         data:
@@ -277,7 +281,6 @@ display:
           - 0b10101
           - 0b11101
           - 0b00000
-
       # Буква 3
       - position: 5
         data:
@@ -299,6 +302,17 @@ display:
           - 0b10000
           - 0b10000
           - 0b10000
+          - 0b00000
+        # Буква И
+      - position: 7
+        data:
+          - 0b10001
+          - 0b10001
+          - 0b10011
+          - 0b10101
+          - 0b11001
+          - 0b10001
+          - 0b10001
           - 0b00000
 
 # Настройка меню
@@ -384,5 +398,10 @@ lcd_menu:
           on_value:
             then:
               - switch.toggle: restart_button
+        - type: command
+          text: "OTK\x03. ESP"
+          on_value:
+            then:
+              - switch.toggle: shutdown_button
         - type: back
           text: "<- HA\x05A\x02"
