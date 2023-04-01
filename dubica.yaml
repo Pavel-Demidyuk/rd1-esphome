@@ -66,6 +66,10 @@ switch:
       - cover.close: windows
       - logger.log: "Cover is closed!"
     internal: true
+  # перезагрузка
+  - platform: restart
+    id: restart_button
+    internal: true
 
 i2c:
   sda: 21
@@ -146,6 +150,10 @@ sensor:
     id: main_temp
     index: 0
     name: "Temperature"
+    filters:
+      - lambda: !lambda |-
+          if (x > 200 || isnan(x)) return 0;
+          return x;
   # Крутелка энкодера
   - platform: rotary_encoder
     name: "Rotary Encoder"
@@ -281,6 +289,17 @@ display:
           - 0b00001
           - 0b11110
           - 0b00000
+        # Буква Г
+      - position: 6
+        data:
+          - 0b11111
+          - 0b10000
+          - 0b10000
+          - 0b10000
+          - 0b10000
+          - 0b10000
+          - 0b10000
+          - 0b00000
 
 # Настройка меню
 lcd_menu:
@@ -297,7 +316,9 @@ lcd_menu:
   items:
     - type: label
       text: !lambda |-
-        return "TEM\x08-PA: " + std::to_string((int) id(main_temp).state) + "C";
+        char buf[16];
+        snprintf(buf, sizeof(buf), "TEM\x08-PA: %4.1f\xdf""C", id(main_temp).state);
+        return std::string(buf);
 
     - type: switch
       text: "OKHA"
@@ -352,9 +373,16 @@ lcd_menu:
       items:
         - type: label
           text: !lambda |-
-            return "Wifi: " + std::to_string((int) id(wifi_percent).state) + "%";
+            return "Wifi " + std::to_string((int)id(wifi_percent).state) + "%";
         - type: label
           text: !lambda |-
-            return "CPU: " + std::to_string((int) id(internal_temp).state) + "C";
+            char buf[16];
+            snprintf(buf, sizeof(buf), "CPU %4.1f\xdf""C", id(internal_temp).state);
+            return std::string(buf);
+        - type: command
+          text: "\x08EPE\x05A\x06P\x01\x05KA"
+          on_value:
+            then:
+              - switch.toggle: restart_button
         - type: back
           text: "<- HA\x05A\x02"
