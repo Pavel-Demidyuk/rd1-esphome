@@ -1,0 +1,208 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+input_boolean:
+  switch_val:
+    initial: true
+input_number:
+  slider1:
+    name: Slider
+    initial: 30
+    min: -20
+    max: 35
+    step: 1
+  slider2:
+    name: Slider
+    initial: 30
+    min: -20
+    max: 35
+    step: 1
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+# Text to speech
+tts:
+  - platform: google_translate
+
+switch:
+  - platform: template
+    switches:
+      test:
+        value_template: "{{ is_state('switch.source', 'on') }}"
+        turn_on:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.switch_val
+        turn_off:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.switch_val
+  - platform: template
+    switches:
+      test2:
+        value_template: "{{ is_state('switch.source', 'on') }}"
+        turn_on:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.switch_val
+        turn_off:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.switch_val
+  - platform: template
+    switches:
+      test3:
+        value_template: "{{ is_state('switch.source', 'on') }}"
+        turn_on:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.switch_val
+        turn_off:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.switch_val
+
+  - platform: template
+    switches:
+      test4:
+        value_template: "{{ is_state('switch.source', 'on') }}"
+        turn_on:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.switch_val
+        turn_off:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.switch_val
+
+climate:
+  - platform: generic_thermostat
+    name: thermostat
+    heater: input_boolean.switch_val
+    target_sensor: input_number.slider_1
+    min_temp: 15
+    max_temp: 29
+    ac_mode: false
+    target_temp: 21
+    cold_tolerance: 0.3
+    hot_tolerance: 0
+    min_cycle_duration:
+      seconds: 5
+    keep_alive:
+      minutes: 3
+    initial_hvac_mode: "off"
+    away_temp: 16
+    precision: 0.1
+
+cover:
+  - platform: template
+    covers:
+      curtain:
+        device_class: curtain
+        friendly_name: "Шторы"
+        value_template: true
+        open_cover:
+          service: input_boolean.turn_on
+        close_cover:
+          service: input_boolean.turn_off
+        stop_cover:
+          service: input_boolean.turn_off
+
+alarm_control_panel:
+  - platform: template
+    panels:
+      safe_alarm_panel:
+        value_template: true
+        arm_away:
+          service: alarm_control_panel.alarm_arm_away
+          target:
+            entity_id: alarm_control_panel.real_alarm
+        arm_home:
+          service: alarm_control_panel.alarm_arm_home
+          target:
+            entity_id: alarm_control_panel.real_alarm
+        disarm:
+          - condition: state
+            entity_id: input_boolean.switch_val
+            state: "home"
+          - service: alarm_control_panel.alarm_disarm
+            target:
+              entity_id: alarm_control_panel.real_alarm
+vacuum:
+  - platform: template
+    vacuums:
+      living_room_vacuum:
+        start:
+          service: input_boolean.turn_on
+
+template:
+  binary_sensor:
+    - name: "Motion"
+      unique_id: motion_id
+      state: true
+      device_class: motion
+
+homekit:
+  - name: motion_bridge1
+    port: 21064
+    filter:
+      include_entities:
+        - template.binary_sensor
+
+  - name: Switch 4
+    port: 21066
+    filter:
+      include_entities:
+        - switch.test4
+  - name: Switch 3
+    port: 21067
+    filter:
+      include_entities:
+        - switch.test3
+  - name: Switch 1
+    port: 21068
+    filter:
+      include_entities:
+        - switch.test
+  - name: Switch 2
+    port: 21069
+    filter:
+      include_entities:
+        - switch.test2
+  - name: Thermo 1
+    port: 21070
+    filter:
+      include_entities:
+        - climate.thermostat
+  - name: Curt1
+    port: 21071
+    filter:
+      include_entities:
+        - cover.curtain
+  - name: Alarm
+    port: 21072
+    filter:
+      include_entities:
+        - alarm_control_panel.safe_alarm_panel
+  - name: Vac
+    port: 21073
+    filter:
+      include_entities:
+        - vacuum.living_room_vacuum
+  - name: Cam
+    port: 21074
+    filter:
+      include_entities:
+        - camera.rd1_io
+
+  - name: Cam2
+    port: 21075
+    filter:
+      include_entities:
+        - camera.www_photofunny_net
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
