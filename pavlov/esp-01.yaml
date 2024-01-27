@@ -1,21 +1,22 @@
 esphome:
-  name: esp-01
-  friendly_name: esp-01
+  name: esp-03
+  friendly_name: esp-03
 
 esp32:
-  board: esp-wrover-kit
+  board: esp32dev
   framework:
     type: arduino
 # Enable logging
 logger:
-
+    level: INFO
+  # level: DEBUG
 # Enable Home Assistant API
 api:
   encryption:
-    key: "4ObvXXDxKh2852QihdDxQe6a5FD7KaccCYR6eQgd618="
+    key: "+d6+hF+PAYZ/nLPF6iaUlhG1lPDBxiIjSsqYXDQ09TE="
 
 ota:
-  password: "b2554193e8286f7364475f75b7605c79"
+#   password: "a398b192dfdaffa8c3966de95563a36a"
 
 ethernet:
   type: LAN8720
@@ -26,13 +27,13 @@ ethernet:
   power_pin: GPIO16
 
   manual_ip:
-      static_ip: 192.168.0.160
+      static_ip: 192.168.0.163
       gateway: 192.168.0.1
       subnet: 255.255.255.0
 
 dallas:
   - pin: 14
-    update_interval: 1s
+    update_interval: 5s
 
 i2c:
   sda: GPIO2
@@ -48,8 +49,12 @@ mcp23008:
 ads1115:
   - address: 0x4a
 
-############################################### ТЕРМОДАТЧИКИ DS18b20 #######################################################    
+
 sensor:
+  - platform: template
+    id: "sensor_desired_temp"
+    name: "Желаемая температура"
+############################################### ТЕРМОДАТЧИКИ DS18b20 #######################################################    
   - platform: dallas
     id: parilka
     address:  0xe70000035148d328   
@@ -62,28 +67,43 @@ sensor:
           if:
             condition:
               lambda: |-
-                return id(parilka).state - id(desired_temp).state > 50;
+                return id(desired_temp).state - id(parilka).state  > 20;
             then:
-              - switch.turn_on: switch_4 #каменка
-              - switch.turn_on: switch_5 #конвектор 1
-              - switch.turn_on: switch_6 #конвектор 2
+              - logger.log:
+                  format: "!!!! > 20, %.1f %.1f"                  
+                  args: ['id(parilka).state', 'id(desired_temp).state']
+                  level: INFO
+              - switch.turn_on: switch_7 #каменка
+              - switch.turn_on: switch_6 #конвектор 1
+              - switch.turn_on: switch_5 #конвектор 2
             else:
               if:
                 condition:
                   lambda: |-
-                    return id(parilka).state - id(desired_temp).state > 20;
+                    return id(desired_temp).state - id(parilka).state > 10;
                 then:
-                   - switch.turn_on: switch_4 #каменка
-                   - switch.turn_on: switch_5 #конвектор 1
-                   - switch.turn_off: switch_6 #конвектор 2
-                else:                  
-                    - switch.turn_on: switch_4 #каменка
-                    - switch.turn_off: switch_5 #конвектор 1
-                    - switch.turn_off: switch_6 #конвектор 2
+                  - logger.log:
+                      format: "!!!! > 10, %.1f %.1f"                  
+                      args: ['id(parilka).state', 'id(desired_temp).state']
+                      level: INFO
+                  - switch.turn_on: switch_7 #каменка
+                  - switch.turn_on: switch_6 #конвектор 1
+                  - switch.turn_off: switch_5 #конвектор 2
+                else:  
+                    - logger.log:
+                        format: "!!!! < 10, %.1f %.1f"                  
+                        args: ['id(parilka).state', 'id(desired_temp).state']
+                        level: INFO               
+                    - switch.turn_on: switch_7 #каменка
+                    - switch.turn_off: switch_6 #конвектор 1
+                    - switch.turn_off: switch_5 #конвектор 2
         else:
-          - switch.turn_off: switch_4 #каменка
-          - switch.turn_off: switch_5 #конвектор 1
-          - switch.turn_off: switch_6 #конвектор 2
+          # - logger.log:
+          #     format: "!!!! ALL OFF"
+          #     level: INFO
+          - switch.turn_off: switch_7 #каменка
+          - switch.turn_off: switch_6 #конвектор 1
+          - switch.turn_off: switch_5 #конвектор 2
   
   # - platform: dallas
   #   address: 0xd13c81f648dabc28
@@ -102,6 +122,9 @@ sensor:
       - above: 250
         then:
           - switch.turn_on: switch_7
+      - above: 500 ### защитное выключение каменки 
+        then:
+          - switch.turn_off: switch_7
       - below: 250
         then:
           - switch.turn_off: switch_7
@@ -129,8 +152,8 @@ sensor:
 ############################################### ЭНКОДЕР КРУТЕЛКА #######################################################
   - platform: rotary_encoder
     name: "Rotary Encoder"
-    pin_a: 35
-    pin_b: 36
+    pin_a: 36
+    pin_b: 35
     on_anticlockwise:
       - display_menu.up:
     on_clockwise:
@@ -158,7 +181,7 @@ binary_sensor:
       inverted: false
   - platform: gpio
     id: sensor_2
-    name: "Сенсор конвекторного нагревателя 2"
+    name: "Сенсор конвекторного каменки 2"
     pin:
       mcp23xxx: mcp23008_hub
       number: 2
@@ -189,48 +212,65 @@ binary_sensor:
 switch:
   - platform: template
     id: main_heater
+    name: "ТУМБЛЕР"
     optimistic: true
-
+    on_turn_off:
+      - climate.control:
+            id: sauna_therm
+            mode: "OFF"
+    on_turn_on:
+      - climate.control:
+            id: sauna_therm
+            mode: HEAT_COOL
+    # turn_on_action:
+    #     - climate.control:
+    #         id: sauna_therm
+    #         mode: HEAT_COOL
+    # turn_off_action:
+    #     - climate.control:
+    #         id: sauna_therm
+    #         mode: "OFF"
   - platform: gpio
     id: switch_32
     pin: 32
-    name: "Выключатель вентилятора"
+    # name: "Выключатель вентилятора"
+    name: "Исполнительное устройство: пар разрешен"
 
 ############################################### ИСПОЛНИТЕЛЬНЫЕ УСТРОЙСТВА MCP (КАМЕНКА) #######################################################
-  - platform: gpio
-    id: "switch_4"
-    name: "Исполнительное устройство: Нагреватель каменки"
-    internal: true
-    pin:
-      mcp23xxx: mcp23008_hub
-      number: 4
-      mode:
-        output: true
-      inverted: true
+  # - platform: gpio
+  #   id: "switch_4"
+  #   name: "Исполнительное устройство: Нагреватель каменки"
+  #   internal: true
+  #   pin:
+  #     mcp23xxx: mcp23008_hub
+  #     number: 4
+  #     mode:
+  #       output: true
+  #     inverted: true
   - platform: gpio
     id: "switch_5"
-    name: "Исполнительное устройство: Конвектор каменки 1"
-    internal: true
+    name: "Исполнительное устройство: Конвектор каменки 2"
+    internal: false
     pin:
       mcp23xxx: mcp23008_hub
       number: 5
       mode:
         output: true
-      inverted: true
+      inverted: false
   - platform: gpio
     id: "switch_6"
-    name: "Исполнительное устройство: Конвектор каменки 2"
-    internal: true
+    name: "Исполнительное устройство: Конвектор каменки 1"
+    internal: false
     pin:
       mcp23xxx: mcp23008_hub
       number: 6
       mode:
         output: true
-      inverted: true
+      inverted: false
   - platform: gpio
     id: "switch_7"
-    name: "Исполнительное устройство: Пар разрешен"
-    # internal: true
+    name: "Исполнительное устройство: Каменка"
+    internal: false
     pin:
       mcp23xxx: mcp23008_hub
       number: 7
@@ -244,23 +284,23 @@ switch:
     name: "Выключатель нагревателя каменки"
     lambda: |-
       if (id(sensor_0).state) {
-        return false;
-      } else {
         return true;
+      } else {
+        return false;
       }
     turn_on_action:
-      - switch.turn_on: switch_4    
+      - switch.turn_on: switch_7 
     turn_off_action:
-      - switch.turn_off: switch_4
+      - switch.turn_off: switch_7
 
   - platform: template
     id: real_switch_2
-    name: "Выключатель конвектора каменки 1"
+    name: "Выключатель конвектора каменки 2"
     lambda: |-
       if (id(sensor_1).state) {
-        return false;
-      } else {
         return true;
+      } else {
+        return false;
       }
     turn_on_action:
       - switch.turn_on: switch_5  
@@ -269,12 +309,12 @@ switch:
 
   - platform: template
     id: real_switch_3
-    name: "Выключатель конвектора каменки 2"
+    name: "Выключатель конвектора каменки 1"
     lambda: |-
       if (id(sensor_2).state) {
-        return false;
-      } else {
         return true;
+      } else {
+        return false;
       }
     turn_on_action:
       - switch.turn_on: switch_6   
@@ -360,6 +400,28 @@ display:
         - 0b10000
         - 0b01111
         - 0b00000
+      # Буква Г
+      - position: 6
+        data:         
+        - 0b11111
+        - 0b10000
+        - 0b10000
+        - 0b10000
+        - 0b10000
+        - 0b10000
+        - 0b00000
+        - 0b00000
+      # Буква Б
+      - position: 7
+        data:         
+        - 0b11111
+        - 0b10000
+        - 0b10000
+        - 0b11110
+        - 0b10001
+        - 0b10001
+        - 0b11110
+        - 0b00000
 ############################################### МЕНЮ #######################################################
 
 # Declare a LCD menu
@@ -379,11 +441,14 @@ lcd_menu:
     then:
       lambda: 'ESP_LOGI("display_menu", "root leave");'
   items:
-    # - type: back
-    #   text: 'Back'
+    - type: switch
+      immediate_edit: false
+      text: " T\x04M\x07\x02EP"
+      on_text: 'ON'
+      off_text: 'OFF'
+      switch: main_heater
     - type: number
-      text: !lambda |-         
-          return " \x04\x05T. TEM\x08.";
+      text: " \x04CT. TEM\x08."
       format: '%.0f'
       number: desired_temp
       on_enter:
@@ -394,6 +459,12 @@ lcd_menu:
           # lambda: 'ESP_LOGI("display_menu", "number leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
       on_value:
         then:
+          # - lambda: 'ESP_LOGI("number", "value: %f", x);'
+          - climate.control:
+              id: sauna_therm
+              mode: HEAT_COOL
+              target_temperature:  !lambda |-  
+                return atof(it->get_value_text().c_str());
           # lambda: 'ESP_LOGI("display_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: label
       text: !lambda |-         
@@ -412,14 +483,18 @@ number:
     max_value: 110.0
     restore_value: true
     step: 1
-    on_value:
-      then:
-        - lambda: 'ESP_LOGI("number", "value: %f", x);'
-        - climate.control:
-            id: sauna_therm
-            mode: HEAT_COOL
-            target_temperature:  !lambda |-  
-              return x;
+    on_value: 
+      - sensor.template.publish:
+          id: sensor_desired_temp
+          state: !lambda 'return x;'
+    # on_value:
+    #   then:
+    #     - lambda: 'ESP_LOGI("number", "value: %f", x);'
+    #     - climate.control:
+    #         id: sauna_therm
+    #         mode: HEAT_COOL
+    #         target_temperature:  !lambda |-  
+    #           return x;
 
 
 climate:
@@ -429,8 +504,28 @@ climate:
     sensor: parilka
     min_heating_off_time: 2s
     min_heating_run_time: 2s
+    # max_temperature: 100
+    visual:
+      min_temperature: 20
+      max_temperature: 110
+      temperature_step: 1
     min_idle_time: 2s
     heat_action:
       - switch.turn_on: main_heater
     idle_action:
       - switch.turn_off: main_heater
+    off_mode: 
+      - switch.turn_off: main_heater
+    # on_state:
+    #   - logger.log:
+    #       format: "!!!!ON STATE"
+    #       level: INFO
+    on_control:
+      # - logger.log:
+      #     format: "!!!! ON CONTROL  %.1f"
+      #     args: ['*x.get_target_temperature()']
+      #     level: INFO
+      - number.set:
+          id: desired_temp
+          value: !lambda |-
+            return *x.get_target_temperature();
