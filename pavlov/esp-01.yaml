@@ -1,0 +1,436 @@
+esphome:
+  name: esp-01
+  friendly_name: esp-01
+
+esp32:
+  board: esp-wrover-kit
+  framework:
+    type: arduino
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "4ObvXXDxKh2852QihdDxQe6a5FD7KaccCYR6eQgd618="
+
+ota:
+  password: "b2554193e8286f7364475f75b7605c79"
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk_mode: GPIO0_IN
+  phy_addr: 1
+  power_pin: GPIO16
+
+  manual_ip:
+      static_ip: 192.168.0.160
+      gateway: 192.168.0.1
+      subnet: 255.255.255.0
+
+dallas:
+  - pin: 14
+    update_interval: 1s
+
+i2c:
+  sda: GPIO2
+  scl: GPIO4
+  id: bus_a
+  frequency: 200kHz
+  scan: true
+
+mcp23008:
+  - id: 'mcp23008_hub'
+    address: 0x20
+    
+ads1115:
+  - address: 0x4a
+
+############################################### ТЕРМОДАТЧИКИ DS18b20 #######################################################    
+sensor:
+  - platform: dallas
+    id: parilka
+    address:  0xe70000035148d328   
+    name: "Температура в парилке"
+    on_value:
+      if: 
+        condition: 
+          switch.is_on: main_heater
+        then:
+          if:
+            condition:
+              lambda: |-
+                return id(parilka).state - id(desired_temp).state > 50;
+            then:
+              - switch.turn_on: switch_4 #каменка
+              - switch.turn_on: switch_5 #конвектор 1
+              - switch.turn_on: switch_6 #конвектор 2
+            else:
+              if:
+                condition:
+                  lambda: |-
+                    return id(parilka).state - id(desired_temp).state > 20;
+                then:
+                   - switch.turn_on: switch_4 #каменка
+                   - switch.turn_on: switch_5 #конвектор 1
+                   - switch.turn_off: switch_6 #конвектор 2
+                else:                  
+                    - switch.turn_on: switch_4 #каменка
+                    - switch.turn_off: switch_5 #конвектор 1
+                    - switch.turn_off: switch_6 #конвектор 2
+        else:
+          - switch.turn_off: switch_4 #каменка
+          - switch.turn_off: switch_5 #конвектор 1
+          - switch.turn_off: switch_6 #конвектор 2
+  
+  # - platform: dallas
+  #   address: 0xd13c81f648dabc28
+  #   name: "temp2"
+
+############################################### ТЕРМОПАРА КАМЕНКА #######################################################    
+  - platform: ads1115
+    id: kamenka
+    multiplexer: 'A0_A1'
+    update_interval: 5s    
+    gain: 0.256
+    name: "Температура каменки градусы"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 0
+    on_value_range: #### включение разрешить пар
+      - above: 250
+        then:
+          - switch.turn_on: switch_7
+      - below: 250
+        then:
+          - switch.turn_off: switch_7
+    filters:      
+    - multiply: 1000
+    # - round: 0
+    - calibrate_linear:
+         method: least_squares
+         datapoints:
+          - -0.1 -> 23
+          - 7.2 -> 205       
+          - 9.328 -> 255
+          - 11.170 -> 300
+          
+    
+  # - platform: ads1115
+  #   id: kamenka2
+  #   multiplexer: 'A0_A1'
+  #   update_interval: 1s    
+  #   gain: 0.256
+  #   name: "Температура каменки вольты"
+  #   filters:      
+  #   - multiply: 1000
+
+############################################### ЭНКОДЕР КРУТЕЛКА #######################################################
+  - platform: rotary_encoder
+    name: "Rotary Encoder"
+    pin_a: 35
+    pin_b: 36
+    on_anticlockwise:
+      - display_menu.up:
+    on_clockwise:
+      - display_menu.down:
+
+############################################### СЕНСОРЫ MCP #######################################################
+binary_sensor:
+  - platform: gpio
+    id: sensor_0
+    name: "Сенсор нагревателя каменки"
+    pin:
+      mcp23xxx: mcp23008_hub
+      number: 0
+      mode:
+        input: true
+      inverted: false
+  - platform: gpio
+    id: sensor_1
+    name: "Сенсор конвекторного каменки 1"
+    pin:
+      mcp23xxx: mcp23008_hub
+      number: 1
+      mode:
+        input: true
+      inverted: false
+  - platform: gpio
+    id: sensor_2
+    name: "Сенсор конвекторного нагревателя 2"
+    pin:
+      mcp23xxx: mcp23008_hub
+      number: 2
+      mode:
+        input: true
+      inverted: false
+  # - platform: gpio
+  #   id: sensor_3
+  #   name: "Сенсор пара"
+  #   pin:
+  #     mcp23xxx: mcp23008_hub
+  #     number: 3
+  #     mode:
+  #       input: true
+  #     inverted: false
+  
+############################################### ЭНКОДЕР КНОПКА #######################################################
+  - platform: gpio
+    name: "Key Encoder"
+    pin: 39
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    on_press:
+      - display_menu.enter:
+############################################### ИСПОЛНИТЕЛЬНЫЕ GPIO #######################################################
+
+switch:
+  - platform: template
+    id: main_heater
+    optimistic: true
+
+  - platform: gpio
+    id: switch_32
+    pin: 32
+    name: "Выключатель вентилятора"
+
+############################################### ИСПОЛНИТЕЛЬНЫЕ УСТРОЙСТВА MCP (КАМЕНКА) #######################################################
+  - platform: gpio
+    id: "switch_4"
+    name: "Исполнительное устройство: Нагреватель каменки"
+    internal: true
+    pin:
+      mcp23xxx: mcp23008_hub
+      number: 4
+      mode:
+        output: true
+      inverted: true
+  - platform: gpio
+    id: "switch_5"
+    name: "Исполнительное устройство: Конвектор каменки 1"
+    internal: true
+    pin:
+      mcp23xxx: mcp23008_hub
+      number: 5
+      mode:
+        output: true
+      inverted: true
+  - platform: gpio
+    id: "switch_6"
+    name: "Исполнительное устройство: Конвектор каменки 2"
+    internal: true
+    pin:
+      mcp23xxx: mcp23008_hub
+      number: 6
+      mode:
+        output: true
+      inverted: true
+  - platform: gpio
+    id: "switch_7"
+    name: "Исполнительное устройство: Пар разрешен"
+    # internal: true
+    pin:
+      mcp23xxx: mcp23008_hub
+      number: 7
+      mode:
+        output: true
+      inverted: false
+
+############################################### ВЫКЛЮЧАТЕЛИ КАМЕНКИ MCP #######################################################
+  - platform: template
+    id: real_switch_1
+    name: "Выключатель нагревателя каменки"
+    lambda: |-
+      if (id(sensor_0).state) {
+        return false;
+      } else {
+        return true;
+      }
+    turn_on_action:
+      - switch.turn_on: switch_4    
+    turn_off_action:
+      - switch.turn_off: switch_4
+
+  - platform: template
+    id: real_switch_2
+    name: "Выключатель конвектора каменки 1"
+    lambda: |-
+      if (id(sensor_1).state) {
+        return false;
+      } else {
+        return true;
+      }
+    turn_on_action:
+      - switch.turn_on: switch_5  
+    turn_off_action:
+      - switch.turn_off: switch_5
+
+  - platform: template
+    id: real_switch_3
+    name: "Выключатель конвектора каменки 2"
+    lambda: |-
+      if (id(sensor_2).state) {
+        return false;
+      } else {
+        return true;
+      }
+    turn_on_action:
+      - switch.turn_on: switch_6   
+    turn_off_action:
+      - switch.turn_off: switch_6
+
+############################################### ДИСПЛЕЙ ######################################################
+display:
+  - platform: lcd_pcf8574
+    id: my_lcd
+    dimensions: 20x4
+    address: 0x27
+    lambda: |-
+      id(my_lcd_menu).draw();
+      if (!id(my_lcd_menu).is_active())
+        it.print("Menu is not active");
+    
+    user_characters:
+      # Буква П
+      - position: 0
+        data:
+          - 0b11111
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b00000
+      # Буква И 
+      - position: 1
+        data:
+    
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b10011
+          - 0b10101
+          - 0b11001
+          - 0b10001
+          - 0b00000
+       # Буква Л
+      - position: 2
+        data:         
+          - 0b01110
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b00000
+      # Буква A
+      - position: 3
+        data:         
+          - 0b01110
+          - 0b10001
+          - 0b10001
+          - 0b11111
+          - 0b10001
+          - 0b10001
+          - 0b10001
+          - 0b00000
+      # Буква У
+      - position: 4
+        data:         
+        - 0b10001
+        - 0b10001
+        - 0b10001
+        - 0b01111
+        - 0b00001
+        - 0b00001
+        - 0b01110
+        - 0b00000
+      # Буква C
+      - position: 5
+        data:         
+        - 0b01111
+        - 0b10000
+        - 0b10000
+        - 0b10000
+        - 0b10000
+        - 0b10000
+        - 0b01111
+        - 0b00000
+############################################### МЕНЮ #######################################################
+
+# Declare a LCD menu
+lcd_menu:
+  id: my_lcd_menu
+  display_id: my_lcd
+  active: true
+  mode: rotary
+  mark_back: 0x08
+  mark_selected: 0x3e
+  mark_editing: 0x2a
+  mark_submenu: 0x7e
+  on_enter:
+    then:
+      lambda: 'ESP_LOGI("display_menu", "root enter");'
+  on_leave:
+    then:
+      lambda: 'ESP_LOGI("display_menu", "root leave");'
+  items:
+    # - type: back
+    #   text: 'Back'
+    - type: number
+      text: !lambda |-         
+          return " \x04\x05T. TEM\x08.";
+      format: '%.0f'
+      number: desired_temp
+      on_enter:
+        then:
+          # lambda: 'ESP_LOGI("display_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_leave:
+        then:
+          # lambda: 'ESP_LOGI("display_menu", "number leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_value:
+        then:
+          # lambda: 'ESP_LOGI("display_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    - type: label
+      text: !lambda |-         
+          return " KAMEHKA "  + std::to_string(static_cast<int>(id(kamenka).state));
+    - type: label
+      text: !lambda |-         
+          return " \x08\x03P\x01\x02KA "  + std::to_string(static_cast<int>(id(parilka).state));
+   
+
+number:
+  - platform: template
+    id: desired_temp
+    optimistic: true
+    min_value: 20.0
+    initial_value: 50
+    max_value: 110.0
+    restore_value: true
+    step: 1
+    on_value:
+      then:
+        - lambda: 'ESP_LOGI("number", "value: %f", x);'
+        - climate.control:
+            id: sauna_therm
+            mode: HEAT_COOL
+            target_temperature:  !lambda |-  
+              return x;
+
+
+climate:
+  - platform: thermostat
+    id: sauna_therm
+    name: "Термостат бани"
+    sensor: parilka
+    min_heating_off_time: 2s
+    min_heating_run_time: 2s
+    min_idle_time: 2s
+    heat_action:
+      - switch.turn_on: main_heater
+    idle_action:
+      - switch.turn_off: main_heater

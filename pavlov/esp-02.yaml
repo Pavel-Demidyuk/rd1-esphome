@@ -1,0 +1,216 @@
+esphome:
+  name: "esp-02"
+  friendly_name: "esp-02"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "msT7ZNTqnoegX+qR3otcwQW0DoOGLQdJhog5F5fJ0yo="
+
+ota:
+  # password: "fa134a6a531fb0b5310019f77991f9ed"
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk_mode: GPIO0_IN
+  phy_addr: 1
+  power_pin: GPIO16
+
+  manual_ip:
+      static_ip: 192.168.0.161
+      gateway: 192.168.0.1
+      subnet: 255.255.255.0
+i2c:
+  sda: GPIO2
+  scl: GPIO4
+  id: bus_a
+  frequency: 200kHz
+  
+mcp23008:
+  - id: 'mcp23008_sensor_hub'
+    address: 0x20
+  - id: 'mcp23008_switch_hub'
+    address: 0x24
+
+############################################### СЕНСОРЫ MCP #######################################################
+
+#---------------------------- дождь ------------------------------#
+binary_sensor:
+  - platform: gpio
+    id: sensor_0
+    name: "Сенсор кнопка Дождь"
+    pin:
+      mcp23xxx: mcp23008_sensor_hub
+      number: 0
+      mode:
+        input: true
+      inverted: true
+    on_press:
+      then:
+        - switch.toggle: switch_0
+
+#---------------------------- арома ------------------------------#
+  - platform: gpio
+    id: sensor_1
+    name: "Сенсор кнопка Аромадиффузор"
+    pin:
+      mcp23xxx: mcp23008_sensor_hub
+      number: 1
+      mode:
+        input: true
+      inverted: true
+    on_press:
+      then:
+        - switch.turn_on: switch_1    
+    on_release:
+      then:
+        - switch.turn_off: switch_1
+
+#---------------------------- приточка ------------------------------#
+  - platform: gpio
+    id: sensor_2
+    name: "Сенсор кнопка Приточный вентилятор"
+    pin:
+      mcp23xxx: mcp23008_sensor_hub
+      number: 2
+      mode:
+        input: true
+      inverted: true
+    on_press:
+      then:
+        - switch.toggle: switch_2       
+
+#---------------------------- вытяжка ------------------------------#
+  - platform: gpio
+    id: sensor_3
+    name: "Сенсор кнопка Вытяжка"    
+    pin:
+      mcp23xxx: mcp23008_sensor_hub
+      number: 3
+      mode:
+        input: true
+      inverted: true
+    on_multi_click:
+    - timing:
+        - ON for 10ms to 1000ms
+        - OFF for at least 10ms
+      then:
+        if:
+          condition: 
+            switch.is_on: switch_4
+          then: 
+            - switch.turn_off: switch_3
+            - switch.turn_off: switch_4
+          else: 
+            - switch.toggle: switch_3
+    - timing:
+        - ON for at least 1000ms
+      then:
+         if:
+          condition: 
+            switch.is_on: switch_3
+          then: 
+            - switch.turn_off: switch_3
+            - delay: 500ms
+            - switch.toggle: switch_4    
+          else: 
+            - switch.turn_off: switch_3
+            - switch.toggle: switch_4     
+
+#---------------------------- пар ------------------------------#
+  - platform: gpio
+    id: sensor_5
+    name: "Сенсор кнопка Пар"
+    pin:
+      mcp23xxx: mcp23008_sensor_hub
+      number: 5
+      mode:
+        input: true
+      inverted: true
+    on_press:
+      then:
+        - switch.turn_on: switch_5
+        - delay: 3s
+        - switch.turn_off: switch_5
+    on_release:
+      then:
+        - switch.turn_off: switch_5
+
+############################################### ИСПОЛНИТЕЛЬНЫЕ УСТРОЙСТВА MCP #######################################################
+switch:
+  - platform: gpio
+    id: "switch_0"
+    name: "Исполнительное устройство: Дождь"
+    pin:
+      mcp23xxx: mcp23008_switch_hub
+      number: 0
+      mode:
+        output: true
+
+  - platform: gpio
+    id: "switch_1"
+    name: "Исполнительное устройство: Аромадиффузор"
+    pin:
+      mcp23xxx: mcp23008_switch_hub
+      number: 1
+      mode:
+        output: true
+    on_turn_on: 
+      - delay: 10s
+      - switch.turn_off : switch_1
+
+  - platform: gpio
+    id: "switch_2"
+    name: "Исполнительное устройство: Приточный вентилятор"
+    # internal: true
+    pin:
+      mcp23xxx: mcp23008_switch_hub
+      number: 2
+      mode:
+        output: true
+      # inverted: true
+
+  - platform: gpio
+    id: "switch_3"
+    name: "Исполнительное устройство: Вытяжка - 1-я скорость"
+    pin:
+      mcp23xxx: mcp23008_switch_hub
+      number: 3
+      mode:
+        output: true
+    on_turn_on: 
+      - switch.turn_off : switch_4
+
+  - platform: gpio
+    id: "switch_4"
+    name: "Исполнительное устройство: Вытяжка - 2-я скорость"
+    pin:
+      mcp23xxx: mcp23008_switch_hub
+      number: 4
+      mode:
+        output: true
+    on_turn_on: 
+      - switch.turn_off : switch_3
+
+  - platform: gpio
+    id: "switch_5"
+    name: "Исполнительное устройство: Пар"
+    pin:
+      mcp23xxx: mcp23008_switch_hub
+      number: 5
+      mode:
+        output: true
+    on_turn_on: 
+      - delay: 3s
+      - switch.turn_off : switch_5
+
+    
