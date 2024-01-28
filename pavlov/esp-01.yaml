@@ -3,20 +3,19 @@ esphome:
   friendly_name: esp-03
 
 esp32:
-  board: esp32dev
+  board: esp-wrover-kit
   framework:
     type: arduino
-# Enable logging
+
 logger:
-    level: INFO
+  level: INFO
   # level: DEBUG
-# Enable Home Assistant API
+
 api:
   encryption:
     key: "+d6+hF+PAYZ/nLPF6iaUlhG1lPDBxiIjSsqYXDQ09TE="
 
 ota:
-#   password: "a398b192dfdaffa8c3966de95563a36a"
 
 ethernet:
   type: LAN8720
@@ -33,7 +32,7 @@ ethernet:
 
 dallas:
   - pin: 14
-    update_interval: 5s
+    update_interval: 2.5s
 
 i2c:
   sda: GPIO2
@@ -52,12 +51,16 @@ ads1115:
 
 sensor:
   - platform: template
-    id: "sensor_desired_temp"
+    id: sensor_desired_temp
     name: "Желаемая температура"
+  - platform: template
+    id: sensor_steam
+    name: "Минимальная температура пара"
+
 ############################################### ТЕРМОДАТЧИКИ DS18b20 #######################################################    
   - platform: dallas
     id: parilka
-    address:  0xe70000035148d328   
+    address: 0xd13c81f648dabc28   
     name: "Температура в парилке"
     on_value:
       if: 
@@ -67,11 +70,11 @@ sensor:
           if:
             condition:
               lambda: |-
-                return id(desired_temp).state - id(parilka).state  > 20;
+                return id(desired_temp_number).state - id(parilka).state  > 20;
             then:
               - logger.log:
                   format: "!!!! > 20, %.1f %.1f"                  
-                  args: ['id(parilka).state', 'id(desired_temp).state']
+                  args: ['id(parilka).state', 'id(desired_temp_number).state']
                   level: INFO
               - switch.turn_on: switch_7 #каменка
               - switch.turn_on: switch_6 #конвектор 1
@@ -80,11 +83,11 @@ sensor:
               if:
                 condition:
                   lambda: |-
-                    return id(desired_temp).state - id(parilka).state > 10;
+                    return id(desired_temp_number).state - id(parilka).state > 10;
                 then:
                   - logger.log:
                       format: "!!!! > 10, %.1f %.1f"                  
-                      args: ['id(parilka).state', 'id(desired_temp).state']
+                      args: ['id(parilka).state', 'id(desired_temp_number).state']
                       level: INFO
                   - switch.turn_on: switch_7 #каменка
                   - switch.turn_on: switch_6 #конвектор 1
@@ -92,7 +95,7 @@ sensor:
                 else:  
                     - logger.log:
                         format: "!!!! < 10, %.1f %.1f"                  
-                        args: ['id(parilka).state', 'id(desired_temp).state']
+                        args: ['id(parilka).state', 'id(desired_temp_number).state']
                         level: INFO               
                     - switch.turn_on: switch_7 #каменка
                     - switch.turn_off: switch_6 #конвектор 1
@@ -118,16 +121,29 @@ sensor:
     name: "Температура каменки градусы"
     unit_of_measurement: "°C"
     accuracy_decimals: 0
-    on_value_range: #### включение разрешить пар
-      - above: 250
-        then:
-          - switch.turn_on: switch_7
+    on_value:
+      then:
+        - if:
+            condition:
+              # Should return either true or false
+              lambda: |-
+                return id(sensor_steam).state <= x;
+            then:
+              - switch.turn_on: switch_4
+            else:
+              - switch.turn_off: switch_4
+        
+    on_value_range: 
+      # - above: 250 #### включение разрешить пар
+      #   then:
+      #     - switch.turn_on: switch_4
+      # - below: 250
+      #   then:
+      #     - switch.turn_off: switch_4
       - above: 500 ### защитное выключение каменки 
         then:
           - switch.turn_off: switch_7
-      - below: 250
-        then:
-          - switch.turn_off: switch_7
+   
     filters:      
     - multiply: 1000
     # - round: 0
@@ -221,7 +237,10 @@ switch:
     on_turn_on:
       - climate.control:
             id: sauna_therm
-            mode: HEAT_COOL
+            mode: "HEAT"
+      - logger.log:
+          format: "!!!! TURN ON CLIMATE !!!!"         
+          level: INFO
     # turn_on_action:
     #     - climate.control:
     #         id: sauna_therm
@@ -231,10 +250,14 @@ switch:
     #         id: sauna_therm
     #         mode: "OFF"
   - platform: gpio
-    id: switch_32
-    pin: 32
-    # name: "Выключатель вентилятора"
+    id: switch_4    
     name: "Исполнительное устройство: пар разрешен"
+    pin:
+      mcp23xxx: mcp23008_hub
+      number: 4
+      mode:
+        output: true
+      inverted: false
 
 ############################################### ИСПОЛНИТЕЛЬНЫЕ УСТРОЙСТВА MCP (КАМЕНКА) #######################################################
   # - platform: gpio
@@ -367,17 +390,17 @@ display:
           - 0b10001
           - 0b10001
           - 0b00000
-      # Буква A
-      - position: 3
-        data:         
-          - 0b01110
-          - 0b10001
-          - 0b10001
-          - 0b11111
-          - 0b10001
-          - 0b10001
-          - 0b10001
-          - 0b00000
+      # # Буква A
+      # - position: 3
+      #   data:         
+      #     - 0b01110
+      #     - 0b10001
+      #     - 0b10001
+      #     - 0b11111
+      #     - 0b10001
+      #     - 0b10001
+      #     - 0b10001
+      #     - 0b00000
       # Буква У
       - position: 4
         data:         
@@ -389,17 +412,17 @@ display:
         - 0b00001
         - 0b01110
         - 0b00000
-      # Буква C
-      - position: 5
-        data:         
-        - 0b01111
-        - 0b10000
-        - 0b10000
-        - 0b10000
-        - 0b10000
-        - 0b10000
-        - 0b01111
-        - 0b00000
+      # # Буква C
+      # - position: 5
+      #   data:         
+      #   - 0b01111
+      #   - 0b10000
+      #   - 0b10000
+      #   - 0b10000
+      #   - 0b10000
+      #   - 0b10000
+      #   - 0b01111
+      #   - 0b00000
       # Буква Г
       - position: 6
         data:         
@@ -447,16 +470,13 @@ lcd_menu:
       on_text: 'ON'
       off_text: 'OFF'
       switch: main_heater
+    - type: label
+      text: !lambda |-         
+          return " \x08""AP\x01\x02KA "  + std::to_string(static_cast<int>(id(parilka).state));
     - type: number
       text: " \x04CT. TEM\x08."
       format: '%.0f'
-      number: desired_temp
-      on_enter:
-        then:
-          # lambda: 'ESP_LOGI("display_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
-      on_leave:
-        then:
-          # lambda: 'ESP_LOGI("display_menu", "number leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      number: desired_temp_number
       on_value:
         then:
           # - lambda: 'ESP_LOGI("number", "value: %f", x);'
@@ -466,17 +486,55 @@ lcd_menu:
               target_temperature:  !lambda |-  
                 return atof(it->get_value_text().c_str());
           # lambda: 'ESP_LOGI("display_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    
     - type: label
       text: !lambda |-         
-          return " KAMEHKA "  + std::to_string(static_cast<int>(id(kamenka).state));
-    - type: label
-      text: !lambda |-         
-          return " \x08\x03P\x01\x02KA "  + std::to_string(static_cast<int>(id(parilka).state));
-   
+        return " KAMEHKA "  + std::to_string(static_cast<int>(id(kamenka).state));
 
+    - type: number
+      text: " \x08AP M\x01H."
+      format: '%.0f'
+      number: steam_number
+
+    - type: label
+      text: !lambda |-         
+        if (id(switch_7).state) {
+         return "CTAT\x04""C KAMEHKA     ON";
+        }
+        else {
+          return "CTAT\x04""C KAMEHKA     OFF";
+        }   
+
+    - type: label
+      text: !lambda |-         
+        if (id(switch_6).state) {
+          return "CTAT\x04""C KOHBEKTOP_1 ON";
+        }
+        else {
+          return "CTAT\x04""C KOHBEKTOP_1 OFF";
+        }   
+
+    - type: label
+      text: !lambda |-         
+        if (id(switch_5).state) {
+          return "CTAT\x04""C KOHBEKTOP_2 ON";
+        }
+        else {
+          return "CTAT\x04""C KOHBEKTOP_2 OFF";
+        } 
+
+    - type: label
+      text: !lambda |-         
+        if (id(switch_4).state) {
+            return "CTAT\x04""C \x08AP      ON";
+        }
+        else {
+            return "CTAT\x04""C \x08AP      OFF";
+        }     
+ 
 number:
   - platform: template
-    id: desired_temp
+    id: desired_temp_number
     optimistic: true
     min_value: 20.0
     initial_value: 50
@@ -487,6 +545,18 @@ number:
       - sensor.template.publish:
           id: sensor_desired_temp
           state: !lambda 'return x;'
+  - platform: template
+    id: steam_number
+    optimistic: true
+    min_value: 100
+    initial_value: 250
+    max_value: 999
+    restore_value: true
+    step: 1
+    on_value: 
+      - sensor.template.publish:
+          id: sensor_steam
+          state: !lambda 'return x;'
     # on_value:
     #   then:
     #     - lambda: 'ESP_LOGI("number", "value: %f", x);'
@@ -496,6 +566,11 @@ number:
     #         target_temperature:  !lambda |-  
     #           return x;
 
+      # - logger.log:
+      #     format: "!!!! ON CONTROL  %.1f"
+      #     args: ['*x.get_target_temperature()']
+      #     level: INFO
+
 
 climate:
   - platform: thermostat
@@ -504,28 +579,22 @@ climate:
     sensor: parilka
     min_heating_off_time: 2s
     min_heating_run_time: 2s
-    # max_temperature: 100
     visual:
       min_temperature: 20
       max_temperature: 110
       temperature_step: 1
     min_idle_time: 2s
     heat_action:
+      # logger.log: "heat"
       - switch.turn_on: main_heater
     idle_action:
+      # logger.log: "idle"
       - switch.turn_off: main_heater
     off_mode: 
+      # logger.log: "off"
       - switch.turn_off: main_heater
-    # on_state:
-    #   - logger.log:
-    #       format: "!!!!ON STATE"
-    #       level: INFO
     on_control:
-      # - logger.log:
-      #     format: "!!!! ON CONTROL  %.1f"
-      #     args: ['*x.get_target_temperature()']
-      #     level: INFO
       - number.set:
-          id: desired_temp
+          id: desired_temp_number
           value: !lambda |-
             return *x.get_target_temperature();
