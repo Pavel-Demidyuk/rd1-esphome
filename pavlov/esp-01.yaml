@@ -72,10 +72,10 @@ sensor:
               lambda: |-
                 return id(desired_temp_number).state - id(parilka).state  > 20;
             then:
-              - logger.log:
-                  format: "!!!! > 20, %.1f %.1f"                  
-                  args: ['id(parilka).state', 'id(desired_temp_number).state']
-                  level: INFO
+              # - logger.log:
+              #     format: "!!!! > 20, %.1f %.1f"                  
+              #     args: ['id(parilka).state', 'id(desired_temp_number).state']
+              #     level: INFO
               - switch.turn_on: switch_7 #каменка
               - switch.turn_on: switch_6 #конвектор 1
               - switch.turn_on: switch_5 #конвектор 2
@@ -83,20 +83,20 @@ sensor:
               if:
                 condition:
                   lambda: |-
-                    return id(desired_temp_number).state - id(parilka).state > 10;
+                    return id(desired_temp_number).state - id(parilka).state > 5;
                 then:
-                  - logger.log:
-                      format: "!!!! > 10, %.1f %.1f"                  
-                      args: ['id(parilka).state', 'id(desired_temp_number).state']
-                      level: INFO
+                  # - logger.log:
+                  #     format: "!!!! > 10, %.1f %.1f"                  
+                  #     args: ['id(parilka).state', 'id(desired_temp_number).state']
+                  #     level: INFO
                   - switch.turn_on: switch_7 #каменка
                   - switch.turn_on: switch_6 #конвектор 1
                   - switch.turn_off: switch_5 #конвектор 2
                 else:  
-                    - logger.log:
-                        format: "!!!! < 10, %.1f %.1f"                  
-                        args: ['id(parilka).state', 'id(desired_temp_number).state']
-                        level: INFO               
+                    # - logger.log:
+                    #     format: "!!!! < 10, %.1f %.1f"                  
+                    #     args: ['id(parilka).state', 'id(desired_temp_number).state']
+                    #     level: INFO               
                     - switch.turn_on: switch_7 #каменка
                     - switch.turn_off: switch_6 #конвектор 1
                     - switch.turn_off: switch_5 #конвектор 2
@@ -234,6 +234,9 @@ switch:
       - climate.control:
             id: sauna_therm
             mode: "OFF"
+      - switch.turn_off: switch_7
+      - switch.turn_off: switch_6
+      - switch.turn_off: switch_5
     on_turn_on:
       - climate.control:
             id: sauna_therm
@@ -482,7 +485,7 @@ lcd_menu:
           # - lambda: 'ESP_LOGI("number", "value: %f", x);'
           - climate.control:
               id: sauna_therm
-              mode: HEAT_COOL
+              mode: HEAT
               target_temperature:  !lambda |-  
                 return atof(it->get_value_text().c_str());
           # lambda: 'ESP_LOGI("display_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
@@ -499,37 +502,37 @@ lcd_menu:
     - type: label
       text: !lambda |-         
         if (id(switch_7).state) {
-         return "CTAT\x04""C KAMEHKA     ON";
+         return "CTAT\x04""C KAMEHKA ON";
         }
         else {
-          return "CTAT\x04""C KAMEHKA     OFF";
+          return "CTAT\x04""C KAMEHKA OFF";
         }   
 
     - type: label
       text: !lambda |-         
         if (id(switch_6).state) {
-          return "CTAT\x04""C KOHBEKTOP_1 ON";
+          return "CTAT\x04""C KOHB_1  ON";
         }
         else {
-          return "CTAT\x04""C KOHBEKTOP_1 OFF";
+          return "CTAT\x04""C KOHB_1  OFF";
         }   
 
     - type: label
       text: !lambda |-         
         if (id(switch_5).state) {
-          return "CTAT\x04""C KOHBEKTOP_2 ON";
+          return "CTAT\x04""C KOHB_2  ON";
         }
         else {
-          return "CTAT\x04""C KOHBEKTOP_2 OFF";
+          return "CTAT\x04""C KOHB_2  OFF";
         } 
 
     - type: label
       text: !lambda |-         
         if (id(switch_4).state) {
-            return "CTAT\x04""C \x08AP      ON";
+            return "CTAT\x04""C \x08""AP     ON";
         }
         else {
-            return "CTAT\x04""C \x08AP      OFF";
+            return "CTAT\x04""C \x08""AP     OFF";
         }     
  
 number:
@@ -588,8 +591,11 @@ climate:
       # logger.log: "heat"
       - switch.turn_on: main_heater
     idle_action:
-      # logger.log: "idle"
-      - switch.turn_off: main_heater
+      - logger.log: "idle"
+      - switch.turn_off: switch_7
+      - switch.turn_off: switch_6
+      - switch.turn_off: switch_5
+      # - switch.turn_off: main_heater
     off_mode: 
       # logger.log: "off"
       - switch.turn_off: main_heater
